@@ -1,0 +1,52 @@
+# Environment variables
+.env
+.env.local
+.env*.local
+frontend/.env.local
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+backend/python-ai/__pycache__/
+backend/typescript-api/node_modules/
+frontend/node_modules/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+.next/
+frontend/.next/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Shared storage (local development)
+shared-storage/
+**/uploads/
+**/outputs/
+
+# Docker
+*.pid
+*.seed
+*.pid.lock
+
+# Python virtual env
+.venv/
+venv/
+backend/python-ai/.venv/
