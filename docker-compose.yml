@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # Python AI Service (FastAPI)
   python-ai:
     build: ./backend/python-ai
     container_name: ai-video-python
@@ -10,13 +9,17 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
+      - USE_HF_API=${USE_HF_API:-false}
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN:-}
+      - ENABLE_LOCAL_SD=${ENABLE_LOCAL_SD:-false}
+      - PEXELS_API_KEY=${PEXELS_API_KEY}  # ✅ FIXED: Now properly passed
+      - UNSPLASH_ACCESS_KEY=${UNSPLASH_ACCESS_KEY}  # ✅ Added for Unsplash support
     volumes:
       - ./backend/python-ai:/app
       - shared-storage:/shared-storage
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     restart: unless-stopped
 
-  # TypeScript API Service (Express/Node)
   typescript-api:
     build: ./backend/typescript-api
     container_name: ai-video-typescript
@@ -35,9 +38,14 @@ services:
     command: npm run dev
     restart: unless-stopped
 
-  # Frontend (React/Next.js)
   frontend:
-    build: ./frontend
+    build: 
+      context: ./frontend
+      args:
+        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        - NEXT_PUBLIC_API_URL=http://localhost:3001
+        - NEXT_PUBLIC_PYTHON_API_URL=http://localhost:8000
     container_name: ai-video-frontend
     ports:
       - "3000:3000"

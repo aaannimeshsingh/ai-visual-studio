@@ -43,9 +43,11 @@ app.get('/', (req: Request, res: Response) => {
   res.json({
     message: 'AI Video Studio - Enhanced TypeScript API',
     status: 'running',
-    version: '3.0',
+    version: '4.0',
     features: {
-      'ai_image_generation': true,
+      'stock_photos': true,
+      'music_library': true,
+      'subtitle_generation': true,
       'advanced_tts': true,
       'video_creation': true,
       'project_management': true
@@ -53,8 +55,9 @@ app.get('/', (req: Request, res: Response) => {
     endpoints: {
       health: '/health',
       projects: '/api/projects',
+      stockPhotos: '/api/stock-photos/search',
+      music: '/api/music/categories',
       processImage: '/api/process-image',
-      generateImage: '/api/generate-image',
       textToSpeech: '/api/text-to-speech',
       advancedTTS: '/api/advanced-tts',
       voices: '/api/voices',
@@ -71,7 +74,147 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
-// Project Management Routes
+// ============================================================================
+// STOCK PHOTOS ROUTES (Proxy to Python backend)
+// ============================================================================
+
+app.get('/api/stock-photos/search', async (req: Request, res: Response) => {
+  try {
+    const { query, page = 1, per_page = 15 } = req.query;
+
+    if (!query) {
+      return res.status(400).json({ success: false, error: 'Query parameter is required' });
+    }
+
+    console.log(`🔍 Searching stock photos for: ${query}`);
+
+    const response = await axios.get(`${PYTHON_AI_URL}/api/stock-photos/search`, {
+      params: { query, page, per_page }
+    });
+
+    res.json(response.data);
+  } catch (error: any) {
+    console.error('Stock photo search error:', error);
+    res.status(error.response?.status || 500).json({ 
+      success: false, 
+      error: error.response?.data?.detail || error.message 
+    });
+  }
+});
+
+app.post('/api/stock-photos/download', upload.none(), async (req: Request, res: Response) => {
+  try {
+    const { photo_url, photo_id } = req.body;
+
+    if (!photo_url || !photo_id) {
+      return res.status(400).json({ success: false, error: 'photo_url and photo_id are required' });
+    }
+
+    console.log(`📥 Downloading stock photo: ${photo_id}`);
+
+    const formData = new FormData();
+    formData.append('photo_url', photo_url);
+    formData.append('photo_id', photo_id);
+
+    const response = await axios.post(`${PYTHON_AI_URL}/api/stock-photos/download`, formData, {
+      headers: formData.getHeaders()
+    });
+
+    res.json(response.data);
+  } catch (error: any) {
+    console.error('Stock photo download error:', error);
+    res.status(error.response?.status || 500).json({ 
+      success: false, 
+      error: error.response?.data?.detail || error.message 
+    });
+  }
+});
+
+// ============================================================================
+// MUSIC LIBRARY ROUTES (Proxy to Python backend)
+// ============================================================================
+
+app.get('/api/music/categories', async (req: Request, res: Response) => {
+  try {
+    const response = await axios.get(`${PYTHON_AI_URL}/api/music/categories`);
+    res.json(response.data);
+  } catch (error: any) {
+    console.error('Music categories error:', error);
+    res.status(error.response?.status || 500).json({ 
+      success: false, 
+      error: error.response?.data?.detail || error.message 
+    });
+  }
+});
+
+app.get('/api/music/tracks', async (req: Request, res: Response) => {
+  try {
+    const { category = 'upbeat' } = req.query;
+    const response = await axios.get(`${PYTHON_AI_URL}/api/music/tracks`, {
+      params: { category }
+    });
+    res.json(response.data);
+  } catch (error: any) {
+    console.error('Music tracks error:', error);
+    res.status(error.response?.status || 500).json({ 
+      success: false, 
+      error: error.response?.data?.detail || error.message 
+    });
+  }
+});
+
+app.get('/api/music/download/:track_id', async (req: Request, res: Response) => {
+  try {
+    const { track_id } = req.params;
+    const response = await axios.get(`${PYTHON_AI_URL}/api/music/download/${track_id}`, {
+      responseType: 'stream'
+    });
+    
+    response.data.pipe(res);
+  } catch (error: any) {
+    console.error('Music download error:', error);
+    res.status(error.response?.status || 500).json({ 
+      success: false, 
+      error: error.response?.data?.detail || error.message 
+    });
+  }
+});
+
+// ============================================================================
+// SUBTITLE ROUTES (Proxy to Python backend)
+// ============================================================================
+
+app.post('/api/subtitles/generate', upload.none(), async (req: Request, res: Response) => {
+  try {
+    const { text, duration, words_per_subtitle = 5 } = req.body;
+
+    if (!text || !duration) {
+      return res.status(400).json({ success: false, error: 'text and duration are required' });
+    }
+
+    const formData = new FormData();
+    formData.append('text', text);
+    formData.append('duration', duration);
+    formData.append('words_per_subtitle', words_per_subtitle);
+
+    const response = await axios.post(`${PYTHON_AI_URL}/api/subtitles/generate`, formData, {
+      headers: formData.getHeaders()
+    });
+
+    res.json(response.data);
+  } catch (error: any) {
+    console.error('Subtitle generation error:', error);
+    res.status(error.response?.status || 500).json({ 
+      success: false, 
+      error: error.response?.data?.detail || error.message 
+    });
+  }
+});
+
+// ============================================================================
+// PROJECT MANAGEMENT ROUTES
+// ============================================================================
+
 app.get('/api/projects', async (req: Request, res: Response) => {
   try {
     const userId = req.query.user_id as string;
@@ -152,38 +295,10 @@ app.delete('/api/projects/:id', async (req: Request, res: Response) => {
   }
 });
 
-// AI Image Generation
-app.post('/api/generate-image', upload.none(), async (req: Request, res: Response) => {
-  try {
-    const { prompt, negative_prompt, num_images } = req.body;
+// ============================================================================
+// ADVANCED TTS ROUTES
+// ============================================================================
 
-    if (!prompt) {
-      return res.status(400).json({ success: false, error: 'Prompt is required' });
-    }
-
-    const formData = new FormData();
-    formData.append('prompt', prompt);
-    formData.append('negative_prompt', negative_prompt || 'blurry, bad quality, distorted');
-    formData.append('num_images', num_images || '1');
-    formData.append('width', '512');
-    formData.append('height', '512');
-
-    const response = await axios.post(`${PYTHON_AI_URL}/api/generate-image`, formData, {
-      headers: formData.getHeaders(),
-      timeout: 120000 // 2 minutes timeout for AI generation
-    });
-
-    res.json(response.data);
-  } catch (error: any) {
-    console.error('Image generation error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.response?.data?.detail || error.message 
-    });
-  }
-});
-
-// Advanced Text-to-Speech
 app.post('/api/advanced-tts', upload.none(), async (req: Request, res: Response) => {
   try {
     const { text, voice, rate, pitch } = req.body;
@@ -211,7 +326,6 @@ app.post('/api/advanced-tts', upload.none(), async (req: Request, res: Response)
   }
 });
 
-// Get Available Voices
 app.get('/api/voices', async (req: Request, res: Response) => {
   try {
     const response = await axios.get(`${PYTHON_AI_URL}/api/voices`);
@@ -224,7 +338,10 @@ app.get('/api/voices', async (req: Request, res: Response) => {
   }
 });
 
-// Process Image
+// ============================================================================
+// IMAGE PROCESSING ROUTES
+// ============================================================================
+
 app.post('/api/process-image', upload.single('file'), async (req: Request, res: Response) => {
   try {
     if (!req.file) {
@@ -250,7 +367,10 @@ app.post('/api/process-image', upload.single('file'), async (req: Request, res: 
   }
 });
 
-// Basic Text to Speech
+// ============================================================================
+// TEXT TO SPEECH (Basic)
+// ============================================================================
+
 app.post('/api/text-to-speech', async (req: Request, res: Response) => {
   try {
     const { text } = req.body;
@@ -275,7 +395,10 @@ app.post('/api/text-to-speech', async (req: Request, res: Response) => {
   }
 });
 
-// Create Video with Advanced Features
+// ============================================================================
+// VIDEO CREATION (Enhanced with new features)
+// ============================================================================
+
 app.post('/api/create-video', upload.array('images'), async (req: Request, res: Response) => {
   try {
     const files = req.files as Express.Multer.File[];
@@ -284,7 +407,7 @@ app.post('/api/create-video', upload.array('images'), async (req: Request, res: 
       return res.status(400).json({ success: false, error: 'No images uploaded' });
     }
 
-    console.log(`Creating video with ${files.length} images`);
+    console.log(`🎬 Creating video with ${files.length} images`);
 
     const formData = new FormData();
     
@@ -305,12 +428,20 @@ app.post('/api/create-video', upload.array('images'), async (req: Request, res: 
     formData.append('filter', req.body.filter || 'none');
     formData.append('enhance', req.body.enhance || 'false');
     formData.append('auto_duration', req.body.auto_duration || 'true');
+    
+    // NEW: Music and subtitles
+    if (req.body.music_track) {
+      formData.append('music_track', req.body.music_track);
+    }
+    formData.append('music_volume', req.body.music_volume || '0.3');
+    formData.append('add_subtitles', req.body.add_subtitles || 'false');
 
     console.log('Video settings:', {
       voice: req.body.voice,
       transition: req.body.transition,
       filter: req.body.filter,
-      enhance: req.body.enhance
+      music_track: req.body.music_track,
+      add_subtitles: req.body.add_subtitles
     });
 
     const response = await axios.post(`${PYTHON_AI_URL}/api/create-video`, formData, {
@@ -366,7 +497,9 @@ app.listen(PORT, () => {
 📦 Supabase: ${supabaseUrl ? '✓ Connected' : '✗ Not configured'}
 
 🎨 Features Enabled:
-   - AI Image Generation
+   - Stock Photo Search (Pexels API)
+   - Music Library (5 categories)
+   - Subtitle Generation
    - Advanced Text-to-Speech (10+ voices)
    - Video Creation with Transitions
    - Image Filters & Enhancement
@@ -374,6 +507,13 @@ app.listen(PORT, () => {
 
 📚 API Documentation: http://localhost:${PORT}
 🔧 Health Check: http://localhost:${PORT}/health
+
+🆕 New Endpoints:
+   - GET  /api/stock-photos/search
+   - POST /api/stock-photos/download
+   - GET  /api/music/categories
+   - GET  /api/music/tracks
+   - POST /api/subtitles/generate
 
 Press Ctrl+C to stop the server
   `);

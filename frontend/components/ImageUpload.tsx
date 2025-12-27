@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useCallback } from 'react';
 import { ImagePreview, EffectType } from '@/types';
 
@@ -6,7 +8,7 @@ interface ImageUploadProps {
   setImages: React.Dispatch<React.SetStateAction<ImagePreview[]>>;
 }
 
-const ImageUpload: React.FC<ImageUploadProps> = ({ images, setImages }) => {
+export default function ImageUpload({ images, setImages }: ImageUploadProps) {
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     const newImages: ImagePreview[] = files.map(file => ({
@@ -87,6 +89,4 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ images, setImages }) => {
       )}
     </div>
   );
-};
-
-export default ImageUpload;
+}

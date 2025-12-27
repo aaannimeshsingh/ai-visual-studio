@@ -28,18 +28,34 @@ export const textToSpeech = async (text: string) => {
   return response.data;
 };
 
-export const createVideo = async (images: File[], audioText: string, durationPerImage: number = 3) => {
+export const createVideo = async (
+  images: File[],
+  audioText: string,
+  durationPerImage: number = 3,
+  voice: string = 'en-US-AriaNeural',
+  transition: string = 'fade',
+  filter: string = 'none',
+  enhance: boolean = false,
+  musicTrack: string = '',          // NEW
+  musicVolume: number = 0.3,        // NEW
+  addSubtitles: boolean = false     // NEW
+) => {
   const formData = new FormData();
   images.forEach((image) => {
     formData.append('images', image);
   });
   formData.append('audio_text', audioText);
   formData.append('duration_per_image', durationPerImage.toString());
+  formData.append('voice', voice);
+  formData.append('transition', transition);
+  formData.append('filter', filter);
+  formData.append('enhance', enhance.toString());
+  formData.append('music_track', musicTrack);          // NEW
+  formData.append('music_volume', musicVolume.toString()); // NEW
+  formData.append('add_subtitles', addSubtitles.toString()); // NEW
 
   const response = await api.post('/api/create-video', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
+    headers: { 'Content-Type': 'multipart/form-data' },
   });
   return response.data;
 };

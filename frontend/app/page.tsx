@@ -3,22 +3,22 @@
 import { useState, useEffect } from 'react';
 import ImageUpload from '@/components/ImageUpload';
 import AuthModal from '@/components/AuthModal';
-import AIImageGenerator from '@/components/AIImageGenerator';
 import AdvancedTTS from '@/components/AdvancedTTS';
+import StockPhotoSearch from '@/components/StockPhotoSearch';
+import MusicLibrary from '@/components/MusicLibrary';
+import SubtitleGenerator from '@/components/SubtitleGenerator';
 import { ImagePreview } from '@/types';
 import { createVideo, textToSpeech, getProjects, createProject } from '@/lib/api';
 import { auth } from '@/lib/auth';
 
 export default function Home() {
-  // Auth state
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   
-  // Video creation state
   const [images, setImages] = useState<ImagePreview[]>([]);
   const [voiceoverText, setVoiceoverText] = useState('');
-  const [selectedVoice, setSelectedVoice] = useState('en-US-AriaNeural');
+  const [selectedVoice, setSelectedVoice] = useState('en-us-female');
   const [durationPerImage, setDurationPerImage] = useState(3);
   const [transition, setTransition] = useState('fade');
   const [filter, setFilter] = useState('none');
@@ -29,17 +29,22 @@ export default function Home() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState('');
   
-  // Project management state
   const [projectHistory, setProjectHistory] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [projectTitle, setProjectTitle] = useState('');
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   
-  // UI state
-  const [showAIGenerator, setShowAIGenerator] = useState(false);
   const [showAdvancedTTS, setShowAdvancedTTS] = useState(false);
+  
+  // New feature states
+  const [showStockPhotos, setShowStockPhotos] = useState(false);
+  const [showMusicLibrary, setShowMusicLibrary] = useState(false);
+  const [selectedMusicTrack, setSelectedMusicTrack] = useState('');
+  const [musicVolume, setMusicVolume] = useState(0.3);
+  const [subtitlesEnabled, setSubtitlesEnabled] = useState(false);
+  const [wordsPerSubtitle, setWordsPerSubtitle] = useState(5);
+  const [audioDuration, setAudioDuration] = useState(0);
 
-  // Check authentication on mount
   useEffect(() => {
     checkAuth();
     
@@ -117,17 +122,33 @@ export default function Home() {
     setShowHistory(false);
   };
 
-  const handleAIImagesGenerated = (generatedImages: any[]) => {
-    console.log('AI Images generated:', generatedImages);
-    // Convert AI generated images to ImagePreview format
-    const newImages: ImagePreview[] = generatedImages.map((img) => ({
-      file: null as any, // We'll need to fetch this
-      preview: `http://localhost:8000${img.url}`,
+  // Handle stock photo selection
+  const handleStockPhotoSelected = (file: File, preview: string) => {
+    console.log('Stock photo selected:', file.name);
+    const newImage: ImagePreview = {
+      file,
+      preview,
       effect: 'none',
-    }));
-    
-    // For now, just show success
-    alert(`${generatedImages.length} AI images generated! Download them and upload to use in your video.`);
+    };
+    setImages(prev => [...prev, newImage]);
+  };
+
+  // Handle music selection
+  const handleMusicSelected = (trackId: string, volume: number) => {
+    setSelectedMusicTrack(trackId);
+    setMusicVolume(volume);
+    console.log('Music selected:', trackId, 'Volume:', volume);
+  };
+
+  // Handle subtitle settings
+  const handleSubtitlesChanged = (enabled: boolean, words: number) => {
+    setSubtitlesEnabled(enabled);
+    setWordsPerSubtitle(words);
+  };
+
+  // Handle audio generation from AdvancedTTS
+  const handleAudioGenerated = (url: string) => {
+    console.log('Audio preview generated:', url);
   };
 
   const handleCreateVideo = async () => {
@@ -179,7 +200,10 @@ export default function Home() {
         selectedVoice,
         transition,
         filter,
-        enhance
+        enhance,
+        selectedMusicTrack,
+        musicVolume,
+        subtitlesEnabled
       );
       
       clearInterval(progressInterval);
@@ -217,7 +241,6 @@ export default function Home() {
     }
   };
 
-  // Drag and drop
   const handleDragStart = (index: number) => {
     setDraggedIndex(index);
   };
@@ -266,8 +289,8 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">AI Video Studio Pro</h1>
-              <p className="text-gray-600 mt-1">Create amazing videos with AI ✨</p>
+              <h1 className="text-3xl font-bold text-gray-900">🎬 AI Video Studio Pro</h1>
+              <p className="text-gray-600 mt-1">Create amazing videos with professional features ✨</p>
             </div>
             
             <div className="flex items-center space-x-4">
@@ -276,7 +299,7 @@ export default function Home() {
                   onClick={() => setShowHistory(!showHistory)}
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                 >
-                  {showHistory ? 'Hide' : 'Show'} History
+                  📚 {showHistory ? 'Hide' : 'Show'} History
                 </button>
               )}
               
@@ -307,7 +330,6 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Guest Notice */}
         {!user && (
           <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-8 rounded-r-lg">
             <div className="flex items-center">
@@ -328,34 +350,45 @@ export default function Home() {
           </div>
         )}
 
-        {/* AI Features Banner */}
+        {/* Enhanced Features Banner */}
         <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg shadow-lg p-6 mb-8">
-          <h2 className="text-2xl font-bold mb-2">🚀 New AI-Powered Features!</h2>
-          <p className="mb-4">Generate images from text and use advanced AI voices for your videos</p>
-          <div className="flex space-x-4">
+          <h2 className="text-2xl font-bold mb-4">🎨 Enhanced Features</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <button
-              onClick={() => setShowAIGenerator(!showAIGenerator)}
-              className="px-4 py-2 bg-white text-purple-600 rounded-lg hover:bg-gray-100 transition-colors font-semibold"
+              onClick={() => setShowStockPhotos(!showStockPhotos)}
+              className="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
             >
-              🎨 {showAIGenerator ? 'Hide' : 'Show'} AI Image Generator
+              📸 {showStockPhotos ? 'Hide' : 'Show'} Stock Photos
             </button>
             <button
-              onClick={() => setShowAdvancedTTS(!showAdvancedTTS)}
-              className="px-4 py-2 bg-white text-purple-600 rounded-lg hover:bg-gray-100 transition-colors font-semibold"
+              onClick={() => setShowMusicLibrary(!showMusicLibrary)}
+              className="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
             >
-              🎙️ {showAdvancedTTS ? 'Hide' : 'Show'} Advanced Voices
+              🎵 {showMusicLibrary ? 'Hide' : 'Show'} Music Library
             </button>
+            <div className="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold flex items-center justify-center">
+              📝 Subtitles: {subtitlesEnabled ? '✅ On' : '❌ Off'}
+            </div>
           </div>
         </div>
 
-        {/* AI Image Generator */}
-        {showAIGenerator && (
+        {/* Stock Photos */}
+        {showStockPhotos && (
           <div className="mb-8">
-            <AIImageGenerator onImagesGenerated={handleAIImagesGenerated} />
+            <StockPhotoSearch onImageSelected={handleStockPhotoSelected} />
           </div>
         )}
 
-        {/* Project History */}
+        {/* Music Library */}
+        {showMusicLibrary && (
+          <div className="mb-8">
+            <MusicLibrary 
+              onTrackSelected={handleMusicSelected}
+              selectedTrack={selectedMusicTrack}
+            />
+          </div>
+        )}
+
         {user && showHistory && (
           <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
             <h2 className="text-2xl font-semibold mb-4">📚 Project History</h2>
@@ -392,7 +425,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Save Project */}
         {user && (
           <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
             <h2 className="text-2xl font-semibold mb-4">💾 Save Project</h2>
@@ -472,7 +504,16 @@ export default function Home() {
 
         {/* Voiceover Section */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-          <h2 className="text-2xl font-semibold mb-4">🎤 Add Voiceover</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-semibold">🎤 Add Voiceover</h2>
+            <button
+              onClick={() => setShowAdvancedTTS(!showAdvancedTTS)}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-semibold"
+            >
+              {showAdvancedTTS ? '🔽 Hide' : '🔼 Show'} Advanced Voices
+            </button>
+          </div>
+          
           <textarea
             value={voiceoverText}
             onChange={(e) => setVoiceoverText(e.target.value)}
@@ -480,13 +521,14 @@ export default function Home() {
             className="w-full h-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           
-          {/* Advanced TTS Component */}
           {showAdvancedTTS && voiceoverText && (
             <div className="mt-4">
               <AdvancedTTS 
                 text={voiceoverText}
-                onAudioGenerated={(url) => {
-                  console.log('Audio preview generated:', url);
+                onAudioGenerated={handleAudioGenerated}
+                onVoiceSelected={(voiceId) => {
+                  setSelectedVoice(voiceId);
+                  console.log('Voice selected:', voiceId);
                 }}
               />
             </div>
@@ -498,7 +540,7 @@ export default function Home() {
               disabled={isProcessing || !voiceoverText.trim()}
               className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-semibold"
             >
-              🔊 Test Audio (Simple)
+              🔊 Test Audio
             </button>
             <div className="flex items-center space-x-2">
               <label className="text-sm text-gray-700 font-medium">Duration per image:</label>
@@ -514,6 +556,17 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Subtitle Generator */}
+        {voiceoverText && (
+          <div className="mb-8">
+            <SubtitleGenerator
+              text={voiceoverText}
+              duration={audioDuration || (images.length * durationPerImage)}
+              onSubtitlesEnabled={handleSubtitlesChanged}
+            />
+          </div>
+        )}
 
         {/* Video Options */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
@@ -547,12 +600,14 @@ export default function Home() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
                 <option value="none">None</option>
-                <option value="vintage">Vintage</option>
-                <option value="warm">Warm</option>
-                <option value="cool">Cool</option>
-                <option value="black_and_white">Black & White</option>
-                <option value="sepia">Sepia</option>
-                <option value="vibrant">Vibrant</option>
+                <option value="vintage">🕰️ Vintage</option>
+                <option value="warm">🌅 Warm</option>
+                <option value="cool">❄️ Cool</option>
+                <option value="black_and_white">⚫ Black & White</option>
+                <option value="sepia">🟤 Sepia</option>
+                <option value="vibrant">🌈 Vibrant</option>
+                <option value="dramatic">🎭 Dramatic</option>
+                <option value="soft">✨ Soft</option>
               </select>
             </div>
 
@@ -565,7 +620,7 @@ export default function Home() {
                   className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                 />
                 <span className="text-sm font-medium text-gray-700">
-                  AI Enhancement
+                  ✨ AI Enhancement
                 </span>
               </label>
             </div>
@@ -579,7 +634,7 @@ export default function Home() {
             disabled={isProcessing || images.length === 0}
             className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xl font-bold rounded-lg hover:shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            {isProcessing ? 'Processing...' : '🎥 Create AI-Powered Video'}
+            {isProcessing ? 'Processing...' : '🎥 Create Professional Video'}
           </button>
 
           {isProcessing && (
@@ -603,7 +658,6 @@ export default function Home() {
           )}
         </div>
 
-        {/* Error Message */}
         {error && (
           <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-8 rounded-r-lg">
             <div className="flex items-center">
@@ -615,7 +669,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Success Result */}
         {result && (
           <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-l-4 border-green-500 p-6 rounded-r-xl shadow-xl">
             <h3 className="text-2xl font-bold text-green-900 mb-4 flex items-center">
@@ -671,7 +724,6 @@ export default function Home() {
         )}
       </main>
 
-      {/* Auth Modal */}
       {showAuthModal && (
         <AuthModal
           onClose={() => setShowAuthModal(false)}
