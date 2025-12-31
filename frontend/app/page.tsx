@@ -526,10 +526,10 @@ export default function Home() {
               <AdvancedTTS 
                 text={voiceoverText}
                 onAudioGenerated={handleAudioGenerated}
-                onVoiceSelected={(voiceId) => {
-                  setSelectedVoice(voiceId);
-                  console.log('Voice selected:', voiceId);
-                }}
+                onVoiceSelected={(voiceId: string) => {
+     setSelectedVoice(voiceId);
+     console.log('Voice selected:', voiceId);
+   }}
               />
             </div>
           )}
