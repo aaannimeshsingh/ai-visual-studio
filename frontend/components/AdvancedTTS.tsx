@@ -1,57 +1,41 @@
+'use client';
+
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 
-const API_URL = 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-// FIXED: Updated voice categories with realistic expectations
-const VOICE_CATEGORIES = {
-  "English": [
-    { id: "en-us-female", name: "🇺🇸 US English (Female-sounding)", gender: "female", working: true },
-    { id: "en-us-male", name: "🇺🇸 US English (Male-sounding)", gender: "male", working: true },
-    { id: "en-uk-female", name: "🇬🇧 UK English (Female-sounding)", gender: "female", working: true },
-    { id: "en-uk-male", name: "🇬🇧 UK English (Male-sounding)", gender: "male", working: true },
-    { id: "en-au-female", name: "🇦🇺 Australian (Female-sounding)", gender: "female", working: true },
-    { id: "en-au-male", name: "🇦🇺 Australian (Male-sounding)", gender: "male", working: true },
-    { id: "en-in-female", name: "🇮🇳 Indian English (Female-sounding)", gender: "female", working: true },
-    { id: "en-in-male", name: "🇮🇳 Indian English (Male-sounding)", gender: "male", working: true },
-  ],
-  "European": [
-    { id: "fr-female", name: "🇫🇷 French (Female-sounding)", gender: "female", working: true },
-    { id: "fr-male", name: "🇫🇷 French (Male-sounding)", gender: "male", working: true },
-    { id: "de-female", name: "🇩🇪 German (Female-sounding)", gender: "female", working: true },
-    { id: "de-male", name: "🇩🇪 German (Male-sounding)", gender: "male", working: true },
-    { id: "es-female", name: "🇪🇸 Spanish (Female-sounding)", gender: "female", working: true },
-    { id: "es-male", name: "🇪🇸 Spanish (Male-sounding)", gender: "male", working: true },
-    { id: "it-female", name: "🇮🇹 Italian (Female-sounding)", gender: "female", working: true },
-    { id: "it-male", name: "🇮🇹 Italian (Male-sounding)", gender: "male", working: true },
-    { id: "pt-female", name: "🇧🇷 Portuguese (Female-sounding)", gender: "female", working: true },
-    { id: "pt-male", name: "🇧🇷 Portuguese (Male-sounding)", gender: "male", working: true },
-  ],
-  "Asian": [
-    { id: "ja-female", name: "🇯🇵 Japanese (Female-sounding)", gender: "female", working: true },
-    { id: "ja-male", name: "🇯🇵 Japanese (Male-sounding)", gender: "male", working: true },
-    { id: "ko-female", name: "🇰🇷 Korean (Female-sounding)", gender: "female", working: true },
-    { id: "ko-male", name: "🇰🇷 Korean (Male-sounding)", gender: "male", working: true },
-    { id: "zh-female", name: "🇨🇳 Chinese (Female-sounding)", gender: "female", working: true },
-    { id: "zh-male", name: "🇨🇳 Chinese (Male-sounding)", gender: "male", working: true },
-    { id: "hi-female", name: "🇮🇳 Hindi (Female-sounding)", gender: "female", working: true },
-    { id: "hi-male", name: "🇮🇳 Hindi (Male-sounding)", gender: "male", working: true },
-  ],
-  "Other": [
-    { id: "ru-female", name: "🇷🇺 Russian (Female-sounding)", gender: "female", working: true },
-    { id: "ru-male", name: "🇷🇺 Russian (Male-sounding)", gender: "male", working: true },
-    { id: "ar-female", name: "🇸🇦 Arabic (Female-sounding)", gender: "female", working: true },
-    { id: "ar-male", name: "🇸🇦 Arabic (Male-sounding)", gender: "male", working: true },
-  ]
-};
+interface Voice {
+  id: string;
+  name: string;
+  gender: string;
+  language: string;
+}
 
-export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected }) {
-  const [selectedCategory, setSelectedCategory] = useState('English');
+interface VoicesByCategory {
+  [category: string]: Voice[];
+}
+
+interface AdvancedTTSProps {
+  text: string;
+  onAudioGenerated?: (audioUrl: string, duration?: number) => void;
+  onVoiceSelected?: (voiceId: string) => void;
+}
+
+export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected }: AdvancedTTSProps) {
+  const [voicesByCategory, setVoicesByCategory] = useState<VoicesByCategory>({});
   const [selectedVoice, setSelectedVoice] = useState('en-us-female');
+  const [selectedCategory, setSelectedCategory] = useState('English');
   const [rate, setRate] = useState(0);
+  const [pitch, setPitch] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioUrl, setAudioUrl] = useState('');
   const [error, setError] = useState('');
   const [audioDuration, setAudioDuration] = useState(0);
+
+  useEffect(() => {
+    loadVoices();
+  }, []);
 
   useEffect(() => {
     if (onVoiceSelected) {
@@ -59,8 +43,19 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected })
     }
   }, [selectedVoice, onVoiceSelected]);
 
+  const loadVoices = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/voices`);
+      if (response.data.voices_by_category) {
+        setVoicesByCategory(response.data.voices_by_category);
+      }
+    } catch (err) {
+      console.error('Error loading voices:', err);
+    }
+  };
+
   const handleGenerateAudio = async () => {
-    if (!text?.trim()) {
+    if (!text.trim()) {
       setError('Please enter some text');
       return;
     }
@@ -74,23 +69,21 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected })
       formData.append('text', text);
       formData.append('voice', selectedVoice);
       formData.append('rate', `${rate >= 0 ? '+' : ''}${rate}%`);
-      formData.append('pitch', '+0Hz');
+      formData.append('pitch', `${pitch >= 0 ? '+' : ''}${pitch}Hz`);
 
-      const response = await fetch(`${API_URL}/api/advanced-tts`, {
-        method: 'POST',
-        body: formData,
+      console.log('Generating TTS:', {
+        voice: selectedVoice,
+        rate: `${rate}%`,
+        pitch: `${pitch}Hz`
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate audio');
-      }
+      const response = await axios.post(`${API_URL}/api/advanced-tts`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
 
-      const data = await response.json();
-
-      if (data.success) {
-        const url = `http://localhost:8000${data.url}`;
-        const duration = data.duration || 0;
+      if (response.data.success) {
+        const url = `http://localhost:8000${response.data.url}`;
+        const duration = response.data.duration || 0;
         
         setAudioUrl(url);
         setAudioDuration(duration);
@@ -99,54 +92,47 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected })
           onAudioGenerated(url, duration);
         }
       }
-    } catch (err) {
-      setError(err.message || 'Failed to generate audio');
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to generate audio');
       console.error('Error generating audio:', err);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const currentVoices = VOICE_CATEGORIES[selectedCategory] || [];
-  const selectedVoiceData = currentVoices.find(v => v.id === selectedVoice) || currentVoices[0];
+  const categories = Object.keys(voicesByCategory);
+  const currentVoices = voicesByCategory[selectedCategory] || [];
+
+  const getVoiceIcon = (gender: string) => {
+    return gender === 'female' ? '👩' : '👨';
+  };
 
   return (
     <div className="space-y-4">
       <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-100">
         <h3 className="text-lg font-semibold mb-3 flex items-center">
           <span className="mr-2">🎙️</span> Advanced Voice Options
-          <span className="ml-2 text-xs bg-blue-500 text-white px-2 py-1 rounded-full">
+          <span className="ml-2 text-xs bg-green-500 text-white px-2 py-1 rounded-full">
             24+ Voices
           </span>
         </h3>
 
-        {/* Important Note */}
-        <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded-r-lg">
-          <p className="text-xs text-yellow-800">
-            <strong>📝 Note:</strong> Using Google TTS (free). "Male" and "Female" refer to regional accents/speech patterns, 
-            not actual voice gender. For true male/female voices, consider Azure TTS or ElevenLabs (requires API keys).
-          </p>
-        </div>
-
         {/* Language Category Tabs */}
         <div className="mb-4">
           <div className="flex flex-wrap gap-2">
-            {Object.keys(VOICE_CATEGORIES).map((category) => (
+            {categories.map((category) => (
               <button
                 key={category}
-                onClick={() => {
-                  setSelectedCategory(category);
-                  setSelectedVoice(VOICE_CATEGORIES[category][0].id);
-                }}
+                onClick={() => setSelectedCategory(category)}
                 className={`px-4 py-2 rounded-lg font-semibold transition-all ${
                   selectedCategory === category
-                    ? 'bg-blue-600 text-white shadow-lg transform scale-105'
+                    ? 'bg-blue-600 text-white shadow-lg'
                     : 'bg-white text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 {category}
                 <span className="ml-2 text-xs opacity-75">
-                  ({VOICE_CATEGORIES[category].length})
+                  ({voicesByCategory[category]?.length || 0})
                 </span>
               </button>
             ))}
@@ -169,13 +155,9 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected })
                     : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
                 }`}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <span className="mr-2">{getVoiceIcon(voice.gender)}</span>
                   <span className="text-sm font-medium">{voice.name}</span>
-                  {voice.working && (
-                    <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">
-                      ✓
-                    </span>
-                  )}
                 </div>
               </button>
             ))}
@@ -185,7 +167,8 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected })
         {/* Voice Preview Info */}
         <div className="mt-3 bg-white rounded-lg p-3 text-sm border border-gray-200">
           <p className="text-gray-600">
-            <span className="font-semibold">Selected:</span> {selectedVoiceData?.name || 'Loading...'}
+            <span className="font-semibold">Selected:</span>{' '}
+            {currentVoices.find(v => v.id === selectedVoice)?.name || 'Loading...'}
           </p>
         </div>
 
@@ -214,8 +197,8 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected })
         {/* Generate Button */}
         <button
           onClick={handleGenerateAudio}
-          disabled={isGenerating || !text?.trim()}
-          className="w-full mt-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105"
+          disabled={isGenerating || !text.trim()}
+          className="w-full mt-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           {isGenerating ? '🎙️ Generating...' : '🔊 Preview Voice'}
         </button>
@@ -246,27 +229,38 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected })
 
         {/* Pro Tips */}
         <div className="mt-4 bg-blue-50 rounded-lg p-3">
-          <p className="text-xs font-semibold text-blue-900 mb-1">💡 Tips for Better Voice Quality:</p>
+          <p className="text-xs font-semibold text-blue-900 mb-1">💡 Pro Tips:</p>
           <ul className="text-xs text-blue-800 space-y-1">
-            <li>• Different accents create slight voice variations</li>
-            <li>• Speed adjustment (-30% to +50%) helps with differentiation</li>
-            <li>• UK/Australian accents sound more formal</li>
-            <li>• US accents are more neutral and clear</li>
-            <li>• For true male/female voices, consider upgrading to Azure TTS</li>
+            <li>• <strong>English:</strong> Choose US, UK, Australian, or Indian accent</li>
+            <li>• <strong>European:</strong> French, German, Spanish, Italian, Portuguese</li>
+            <li>• <strong>Asian:</strong> Japanese, Korean, Chinese, Hindi</li>
+            <li>• <strong>Speed:</strong> -30% for narration, +20% for energetic content</li>
+            <li>• <strong>Preview:</strong> Test the voice before creating your video</li>
+            <li>• All voices work in video creation automatically! 🎥</li>
           </ul>
         </div>
 
-        {/* Upgrade Note */}
-        <div className="mt-3 bg-purple-50 rounded-lg p-3 border border-purple-200">
-          <p className="text-xs font-semibold text-purple-900 mb-2">🚀 Want True Male/Female Voices?</p>
-          <p className="text-xs text-purple-800">
-            For authentic voice gender distinction, consider:
-          </p>
-          <ul className="text-xs text-purple-700 mt-1 space-y-1">
-            <li>• <strong>Azure TTS:</strong> 50+ neural voices (requires API key)</li>
-            <li>• <strong>ElevenLabs:</strong> Ultra-realistic AI voices (paid)</li>
-            <li>• <strong>Amazon Polly:</strong> Natural-sounding voices (AWS account)</li>
-          </ul>
+        {/* Language Examples */}
+        <div className="mt-3 bg-purple-50 rounded-lg p-3">
+          <p className="text-xs font-semibold text-purple-900 mb-2">🌍 Multi-Language Support:</p>
+          <div className="grid grid-cols-2 gap-2 text-xs text-purple-800">
+            <div>
+              <p className="font-semibold">🇺🇸 English:</p>
+              <p className="italic">&quot;Hello, welcome!&quot;</p>
+            </div>
+            <div>
+              <p className="font-semibold">🇫🇷 French:</p>
+              <p className="italic">&quot;Bonjour, bienvenue!&quot;</p>
+            </div>
+            <div>
+              <p className="font-semibold">🇪🇸 Spanish:</p>
+              <p className="italic">&quot;¡Hola, bienvenido!&quot;</p>
+            </div>
+            <div>
+              <p className="font-semibold">🇯🇵 Japanese:</p>
+              <p className="italic">&quot;こんにちは！&quot;</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
