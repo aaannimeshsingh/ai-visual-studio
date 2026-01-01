@@ -12,7 +12,7 @@ import uuid
 import subprocess
 from enum import Enum
 import asyncio
-from gtts import gTTS
+from gtts import gTTS # type: ignore
 import aiohttp
 import json
 
@@ -21,7 +21,12 @@ app = FastAPI(title="AI Video Studio - Enhanced with Vibrant Animations")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://ai-visual-studio.vercel.app",
+        "https://*.vercel.app",  # Allow all Vercel preview deployments
+        "*"  # Temporary - allows all origins for testing
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
