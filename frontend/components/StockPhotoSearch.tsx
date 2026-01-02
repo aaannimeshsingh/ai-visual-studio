@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://screeching-kelsy-aaaannnimesh-ecf28e25.koyeb.app';
+const PYTHON_API_URL = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'https://faint-caye-aaaannnimesh-fe7ebc44.koyeb.app';
 
 interface StockPhoto {
   id: number;
@@ -15,7 +16,7 @@ interface StockPhoto {
 }
 
 interface StockPhotoSearchProps {
-  onImageSelected: (file: File, preview: string) => void; // ✅ FIXED: Now accepts File + preview
+  onImageSelected: (file: File, preview: string) => void;
 }
 
 export default function StockPhotoSearch({ onImageSelected }: StockPhotoSearchProps) {
@@ -60,7 +61,6 @@ export default function StockPhotoSearch({ onImageSelected }: StockPhotoSearchPr
   const handleDownload = async (photo: StockPhoto) => {
     setDownloadingPhoto(photo.id);
     try {
-      // Step 1: Download the image to backend
       const formData = new FormData();
       formData.append('photo_url', photo.download_url);
       formData.append('photo_id', photo.id.toString());
@@ -72,27 +72,22 @@ export default function StockPhotoSearch({ onImageSelected }: StockPhotoSearchPr
       );
 
       if (response.data.success) {
-        // Step 2: Fetch the downloaded image as a blob
-        const imageUrl = `http://localhost:8000${response.data.url}`;
+        // ✅ FIXED: Use deployed Python API URL
+        const imageUrl = `${PYTHON_API_URL}${response.data.url}`;
         const imageResponse = await fetch(imageUrl);
         const blob = await imageResponse.blob();
         
-        // Step 3: Convert blob to File object
         const file = new File(
           [blob], 
           response.data.filename || `stock-${photo.id}.jpg`,
           { type: 'image/jpeg' }
         );
 
-        // Step 4: Create preview URL
         const previewUrl = URL.createObjectURL(blob);
-
-        // Step 5: Pass to parent component with proper File object
         onImageSelected(file, previewUrl);
         
         setSelectedPhotos(prev => new Set(prev).add(photo.id));
         
-        // Show success message
         const notification = document.createElement('div');
         notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in';
         notification.innerHTML = `
@@ -110,7 +105,6 @@ export default function StockPhotoSearch({ onImageSelected }: StockPhotoSearchPr
       setError(err.response?.data?.detail || 'Failed to download photo');
       console.error('Download error:', err);
       
-      // Show error notification
       const notification = document.createElement('div');
       notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
       notification.innerHTML = `

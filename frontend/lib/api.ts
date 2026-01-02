@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// ✅ FIXED: Use deployed Koyeb TypeScript API URL
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://screeching-kelsy-aaaannnimesh-ecf28e25.koyeb.app';
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -36,9 +37,9 @@ export const createVideo = async (
   transition: string = 'fade',
   filter: string = 'none',
   enhance: boolean = false,
-  musicTrack: string = '',          // NEW
-  musicVolume: number = 0.3,        // NEW
-  addSubtitles: boolean = false     // NEW
+  musicTrack: string = '',
+  musicVolume: number = 0.3,
+  addSubtitles: boolean = false
 ) => {
   const formData = new FormData();
   images.forEach((image) => {
@@ -50,9 +51,9 @@ export const createVideo = async (
   formData.append('transition', transition);
   formData.append('filter', filter);
   formData.append('enhance', enhance.toString());
-  formData.append('music_track', musicTrack);          // NEW
-  formData.append('music_volume', musicVolume.toString()); // NEW
-  formData.append('add_subtitles', addSubtitles.toString()); // NEW
+  formData.append('music_track', musicTrack);
+  formData.append('music_volume', musicVolume.toString());
+  formData.append('add_subtitles', addSubtitles.toString());
 
   const response = await api.post('/api/create-video', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },

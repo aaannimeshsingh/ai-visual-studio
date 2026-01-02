@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://screeching-kelsy-aaaannnimesh-ecf28e25.koyeb.app';
+const PYTHON_API_URL = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'https://faint-caye-aaaannnimesh-fe7ebc44.koyeb.app';
 
 interface Voice {
   id: string;
@@ -82,7 +83,7 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected }:
       });
 
       if (response.data.success) {
-        const url = `http://localhost:8000${response.data.url}`;
+        const url = `${PYTHON_API_URL}${response.data.url}`;
         const duration = response.data.duration || 0;
         
         setAudioUrl(url);
@@ -117,7 +118,6 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected }:
           </span>
         </h3>
 
-        {/* Language Category Tabs */}
         <div className="mb-4">
           <div className="flex flex-wrap gap-2">
             {categories.map((category) => (
@@ -139,7 +139,6 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected }:
           </div>
         </div>
 
-        {/* Voice Selection Grid */}
         <div className="space-y-3">
           <label className="block text-sm font-medium text-gray-700">
             Select Voice ({currentVoices.length} available)
@@ -164,7 +163,6 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected }:
           </div>
         </div>
 
-        {/* Voice Preview Info */}
         <div className="mt-3 bg-white rounded-lg p-3 text-sm border border-gray-200">
           <p className="text-gray-600">
             <span className="font-semibold">Selected:</span>{' '}
@@ -172,7 +170,6 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected }:
           </p>
         </div>
 
-        {/* Speed Control */}
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Speech Speed: {rate > 0 ? '+' : ''}{rate}% 
@@ -194,7 +191,6 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected }:
           </div>
         </div>
 
-        {/* Generate Button */}
         <button
           onClick={handleGenerateAudio}
           disabled={isGenerating || !text.trim()}
@@ -203,14 +199,12 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected }:
           {isGenerating ? '🎙️ Generating...' : '🔊 Preview Voice'}
         </button>
 
-        {/* Error Message */}
         {error && (
           <div className="mt-3 bg-red-50 border-l-4 border-red-500 p-3 rounded-r-lg">
             <p className="text-sm text-red-700">{error}</p>
           </div>
         )}
 
-        {/* Audio Player */}
         {audioUrl && (
           <div className="mt-3 bg-green-50 border-l-4 border-green-500 p-4 rounded-r-lg">
             <p className="text-sm font-semibold text-green-900 mb-2">
@@ -227,7 +221,6 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected }:
           </div>
         )}
 
-        {/* Pro Tips */}
         <div className="mt-4 bg-blue-50 rounded-lg p-3">
           <p className="text-xs font-semibold text-blue-900 mb-1">💡 Pro Tips:</p>
           <ul className="text-xs text-blue-800 space-y-1">
@@ -238,29 +231,6 @@ export default function AdvancedTTS({ text, onAudioGenerated, onVoiceSelected }:
             <li>• <strong>Preview:</strong> Test the voice before creating your video</li>
             <li>• All voices work in video creation automatically! 🎥</li>
           </ul>
-        </div>
-
-        {/* Language Examples */}
-        <div className="mt-3 bg-purple-50 rounded-lg p-3">
-          <p className="text-xs font-semibold text-purple-900 mb-2">🌍 Multi-Language Support:</p>
-          <div className="grid grid-cols-2 gap-2 text-xs text-purple-800">
-            <div>
-              <p className="font-semibold">🇺🇸 English:</p>
-              <p className="italic">&quot;Hello, welcome!&quot;</p>
-            </div>
-            <div>
-              <p className="font-semibold">🇫🇷 French:</p>
-              <p className="italic">&quot;Bonjour, bienvenue!&quot;</p>
-            </div>
-            <div>
-              <p className="font-semibold">🇪🇸 Spanish:</p>
-              <p className="italic">&quot;¡Hola, bienvenido!&quot;</p>
-            </div>
-            <div>
-              <p className="font-semibold">🇯🇵 Japanese:</p>
-              <p className="italic">&quot;こんにちは！&quot;</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>
