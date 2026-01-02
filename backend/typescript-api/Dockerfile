@@ -5,12 +5,20 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install ALL dependencies (including devDependencies for build)
+RUN npm ci
 
-# Copy source code
+# Copy source code and tsconfig
 COPY . .
 
-EXPOSE 3001
+# Build TypeScript to JavaScript
+RUN npm run build
 
-CMD ["npm", "run", "dev"]
+# Remove dev dependencies to reduce image size
+RUN npm prune --production
+
+# Expose port 8000 (Koyeb default)
+EXPOSE 8000
+
+# Start the production server
+CMD ["npm", "start"]
