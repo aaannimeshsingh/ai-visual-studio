@@ -27,7 +27,7 @@ app.add_middleware(
         "https://*.vercel.app",  # Allow all Vercel preview deployments
         "*"  # Temporary - allows all origins for testing
     ],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -320,16 +320,7 @@ async def root():
             "ui": ["🎨 Vibrant colors", "🔮 Shadow animations", "⚡ Interactive hover effects", "🌟 Glow animations"]
         }
     }
-# ✅ FIXED: Add health check endpoint
-@app.get("/health")
-async def health_check():
-    """Health check endpoint for monitoring"""
-    return {
-        "status": "healthy",
-        "service": "python-ai",
-        "version": "8.0",
-        "timestamp": str(uuid.uuid4())
-    }
+
 # ==================== STOCK PHOTOS ====================
 @app.get("/api/stock-photos/search")
 async def search_stock_photos(query: str, page: int = 1, per_page: int = 15):
