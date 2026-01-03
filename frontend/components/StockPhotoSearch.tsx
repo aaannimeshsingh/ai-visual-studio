@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://screeching-kelsy-aaaannnimesh-ecf28e25.koyeb.app';
-const PYTHON_API_URL = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'https://faint-caye-aaaannnimesh-fe7ebc44.koyeb.app';
+// ✅ USE PYTHON API DIRECTLY
+const API_URL = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'https://faint-caye-aaaannnimesh-fe7ebc44.koyeb.app';
 
 interface StockPhoto {
   id: number;
@@ -43,16 +43,20 @@ export default function StockPhotoSearch({ onImageSelected }: StockPhotoSearchPr
     setError('');
 
     try {
+      console.log('Searching photos:', `${API_URL}/api/stock-photos/search`);
       const response = await axios.get(`${API_URL}/api/stock-photos/search`, {
-        params: { query, page: 1, per_page: 15 }
+        params: { query, page: 1, per_page: 15 },
+        timeout: 15000
       });
 
       if (response.data.success) {
         setPhotos(response.data.photos);
+        console.log('✅ Found', response.data.photos.length, 'photos');
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to search photos');
-      console.error('Search error:', err);
+      const errorMsg = err.response?.data?.detail || err.message || 'Failed to search photos';
+      setError(errorMsg);
+      console.error('Search error:', errorMsg);
     } finally {
       setLoading(false);
     }
@@ -65,15 +69,18 @@ export default function StockPhotoSearch({ onImageSelected }: StockPhotoSearchPr
       formData.append('photo_url', photo.download_url);
       formData.append('photo_id', photo.id.toString());
 
+      console.log('Downloading photo:', photo.id);
       const response = await axios.post(
         `${API_URL}/api/stock-photos/download`,
         formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        { 
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 30000
+        }
       );
 
       if (response.data.success) {
-        // ✅ FIXED: Use deployed Python API URL
-        const imageUrl = `${PYTHON_API_URL}${response.data.url}`;
+        const imageUrl = `${API_URL}${response.data.url}`;
         const imageResponse = await fetch(imageUrl);
         const blob = await imageResponse.blob();
         
@@ -100,10 +107,12 @@ export default function StockPhotoSearch({ onImageSelected }: StockPhotoSearchPr
         `;
         document.body.appendChild(notification);
         setTimeout(() => notification.remove(), 3000);
+        console.log('✅ Photo downloaded successfully');
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to download photo');
-      console.error('Download error:', err);
+      const errorMsg = err.response?.data?.detail || err.message || 'Failed to download photo';
+      setError(errorMsg);
+      console.error('Download error:', errorMsg);
       
       const notification = document.createElement('div');
       notification.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';

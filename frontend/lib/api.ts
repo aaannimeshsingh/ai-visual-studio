@@ -1,13 +1,14 @@
 import axios from 'axios';
 
-// ✅ FIXED: Use deployed Koyeb TypeScript API URL
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://screeching-kelsy-aaaannnimesh-ecf28e25.koyeb.app';
+// ✅ USE PYTHON API DIRECTLY (it has all endpoints)
+const API_URL = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'https://faint-caye-aaaannnimesh-fe7ebc44.koyeb.app';
 
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000 // 30 second timeout
 });
 
 // API Functions
