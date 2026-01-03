@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
@@ -11,28 +11,51 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// ✅ FIXED: Enhanced CORS with proper configuration
+// ✅ FIXED: Enhanced CORS Configuration
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://ai-visual-studio.vercel.app',
-    /^https:\/\/.*\.vercel\.app$/,
-  ],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://ai-visual-studio.vercel.app',
+      'https://ai-visual-studio-git-main-aaaannnimeshs-projects.vercel.app'
+    ];
+    
+    // Allow all Vercel preview deployments
+    if (origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all for now during debugging
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  exposedHeaders: ['Content-Length', 'Content-Type'],
-  maxAge: 86400 // 24 hours
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'Content-Type', 'Content-Disposition'],
+  maxAge: 86400,
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ✅ Handle preflight OPTIONS requests
+app.options('*', cors());
 
-// Multer setup
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Multer setup with larger limits
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB limit
+    fileSize: 50 * 1024 * 1024, // 50MB
+    files: 20
   }
 });
 
@@ -44,24 +67,22 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Python AI service URL
 const PYTHON_AI_URL = process.env.PYTHON_AI_URL || 'https://faint-caye-aaaannnimesh-fe7ebc44.koyeb.app';
 
-// Types
-interface Project {
-  id: string;
-  user_id: string;
-  title: string;
-  description?: string;
-  status: 'draft' | 'processing' | 'completed' | 'failed';
-  video_url?: string;
-  created_at: string;
-  updated_at: string;
-}
+console.log('🔗 Connecting to Python API:', PYTHON_AI_URL);
+
+// ✅ Request logging middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  next();
+});
 
 // Routes
 app.get('/', (req: Request, res: Response) => {
   res.json({
     message: 'AI Video Studio - TypeScript API',
     status: 'running',
-    version: '5.0',
+    version: '6.0',
+    python_api: PYTHON_AI_URL,
+    supabase: supabaseUrl ? 'connected' : 'not configured',
     features: {
       'stock_photos': true,
       'music_library': true,
@@ -75,7 +96,6 @@ app.get('/', (req: Request, res: Response) => {
       projects: '/api/projects',
       stockPhotos: '/api/stock-photos/search',
       music: '/api/music/categories',
-      textToSpeech: '/api/advanced-tts',
       voices: '/api/voices',
       createVideo: '/api/create-video'
     }
@@ -86,24 +106,149 @@ app.get('/health', (req: Request, res: Response) => {
   res.json({ 
     status: 'healthy', 
     service: 'typescript-api',
-    python_ai_url: PYTHON_AI_URL,
+    python_api_url: PYTHON_AI_URL,
     timestamp: new Date().toISOString()
   });
 });
 
 // ============================================================================
-// STOCK PHOTOS ROUTES (Proxy to Python backend)
+// PROJECT MANAGEMENT ROUTES - ✅ COMPLETE IMPLEMENTATION
 // ============================================================================
 
+app.get('/api/projects', async (req: Request, res: Response) => {
+  try {
+    const userId = req.query.user_id as string;
+    
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'user_id parameter is required' 
+      });
+    }
+
+    console.log('📚 Fetching projects for user:', userId);
+    
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Supabase error:', error);
+      throw error;
+    }
+
+    console.log(`✅ Found ${data?.length || 0} projects`);
+    res.json({ success: true, projects: data || [] });
+  } catch (error: any) {
+    console.error('❌ Get projects error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/projects', async (req: Request, res: Response) => {
+  try {
+    const { user_id, title, description } = req.body;
+
+    if (!user_id || !title) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'user_id and title are required' 
+      });
+    }
+
+    console.log('➕ Creating project:', title);
+
+    const { data, error } = await supabase
+      .from('projects')
+      .insert([{
+        user_id,
+        title,
+        description: description || '',
+        status: 'draft'
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Supabase error:', error);
+      throw error;
+    }
+
+    console.log('✅ Project created:', data.id);
+    res.json({ success: true, project: data });
+  } catch (error: any) {
+    console.error('❌ Create project error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.patch('/api/projects/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    console.log('✏️ Updating project:', id);
+
+    const { data, error } = await supabase
+      .from('projects')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Supabase error:', error);
+      throw error;
+    }
+
+    console.log('✅ Project updated');
+    res.json({ success: true, project: data });
+  } catch (error: any) {
+    console.error('❌ Update project error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/projects/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    console.log('🗑️ Deleting project:', id);
+
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('❌ Supabase error:', error);
+      throw error;
+    }
+
+    console.log('✅ Project deleted');
+    res.json({ success: true, message: 'Project deleted' });
+  } catch (error: any) {
+    console.error('❌ Delete project error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================================
+// PROXY ROUTES TO PYTHON API
+// ============================================================================
+
+// Stock Photos
 app.get('/api/stock-photos/search', async (req: Request, res: Response) => {
   try {
     const { query, page = 1, per_page = 15 } = req.query;
 
     if (!query) {
-      return res.status(400).json({ success: false, error: 'Query parameter is required' });
+      return res.status(400).json({ success: false, error: 'Query parameter required' });
     }
 
-    console.log(`🔍 Searching stock photos for: ${query}`);
+    console.log('🔍 Searching stock photos:', query);
 
     const response = await axios.get(`${PYTHON_AI_URL}/api/stock-photos/search`, {
       params: { query, page, per_page },
@@ -112,7 +257,7 @@ app.get('/api/stock-photos/search', async (req: Request, res: Response) => {
 
     res.json(response.data);
   } catch (error: any) {
-    console.error('Stock photo search error:', error.message);
+    console.error('❌ Stock photo search error:', error.message);
     res.status(error.response?.status || 500).json({ 
       success: false, 
       error: error.response?.data?.detail || error.message 
@@ -125,10 +270,10 @@ app.post('/api/stock-photos/download', upload.none(), async (req: Request, res: 
     const { photo_url, photo_id } = req.body;
 
     if (!photo_url || !photo_id) {
-      return res.status(400).json({ success: false, error: 'photo_url and photo_id are required' });
+      return res.status(400).json({ success: false, error: 'photo_url and photo_id required' });
     }
 
-    console.log(`📥 Downloading stock photo: ${photo_id}`);
+    console.log('📥 Downloading stock photo:', photo_id);
 
     const formData = new FormData();
     formData.append('photo_url', photo_url);
@@ -141,7 +286,7 @@ app.post('/api/stock-photos/download', upload.none(), async (req: Request, res: 
 
     res.json(response.data);
   } catch (error: any) {
-    console.error('Stock photo download error:', error.message);
+    console.error('❌ Download error:', error.message);
     res.status(error.response?.status || 500).json({ 
       success: false, 
       error: error.response?.data?.detail || error.message 
@@ -149,18 +294,13 @@ app.post('/api/stock-photos/download', upload.none(), async (req: Request, res: 
   }
 });
 
-// ============================================================================
-// MUSIC LIBRARY ROUTES (Proxy to Python backend)
-// ============================================================================
-
+// Music Library
 app.get('/api/music/categories', async (req: Request, res: Response) => {
   try {
-    const response = await axios.get(`${PYTHON_AI_URL}/api/music/categories`, {
-      timeout: 10000
-    });
+    const response = await axios.get(`${PYTHON_AI_URL}/api/music/categories`, { timeout: 10000 });
     res.json(response.data);
   } catch (error: any) {
-    console.error('Music categories error:', error.message);
+    console.error('❌ Music categories error:', error.message);
     res.status(error.response?.status || 500).json({ 
       success: false, 
       error: error.response?.data?.detail || error.message 
@@ -177,7 +317,7 @@ app.get('/api/music/tracks', async (req: Request, res: Response) => {
     });
     res.json(response.data);
   } catch (error: any) {
-    console.error('Music tracks error:', error.message);
+    console.error('❌ Music tracks error:', error.message);
     res.status(error.response?.status || 500).json({ 
       success: false, 
       error: error.response?.data?.detail || error.message 
@@ -185,34 +325,13 @@ app.get('/api/music/tracks', async (req: Request, res: Response) => {
   }
 });
 
-app.get('/api/music/download/:track_id', async (req: Request, res: Response) => {
-  try {
-    const { track_id } = req.params;
-    const response = await axios.get(`${PYTHON_AI_URL}/api/music/download/${track_id}`, {
-      responseType: 'stream',
-      timeout: 30000
-    });
-    
-    response.data.pipe(res);
-  } catch (error: any) {
-    console.error('Music download error:', error.message);
-    res.status(error.response?.status || 500).json({ 
-      success: false, 
-      error: error.response?.data?.detail || error.message 
-    });
-  }
-});
-
-// ============================================================================
-// SUBTITLE ROUTES (Proxy to Python backend)
-// ============================================================================
-
+// Subtitles
 app.post('/api/subtitles/generate', upload.none(), async (req: Request, res: Response) => {
   try {
     const { text, duration, words_per_subtitle = 5 } = req.body;
 
     if (!text || !duration) {
-      return res.status(400).json({ success: false, error: 'text and duration are required' });
+      return res.status(400).json({ success: false, error: 'text and duration required' });
     }
 
     const formData = new FormData();
@@ -227,7 +346,7 @@ app.post('/api/subtitles/generate', upload.none(), async (req: Request, res: Res
 
     res.json(response.data);
   } catch (error: any) {
-    console.error('Subtitle generation error:', error.message);
+    console.error('❌ Subtitle error:', error.message);
     res.status(error.response?.status || 500).json({ 
       success: false, 
       error: error.response?.data?.detail || error.message 
@@ -235,124 +354,7 @@ app.post('/api/subtitles/generate', upload.none(), async (req: Request, res: Res
   }
 });
 
-// ============================================================================
-// PROJECT MANAGEMENT ROUTES - ✅ FIXED: Now properly implemented
-// ============================================================================
-
-app.get('/api/projects', async (req: Request, res: Response) => {
-  try {
-    const userId = req.query.user_id as string;
-    
-    if (!userId) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'user_id is required' 
-      });
-    }
-    
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Supabase error:', error);
-      throw error;
-    }
-
-    res.json({ success: true, projects: data || [] });
-  } catch (error: any) {
-    console.error('Get projects error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post('/api/projects', async (req: Request, res: Response) => {
-  try {
-    const { user_id, title, description } = req.body;
-
-    if (!user_id || !title) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'user_id and title are required' 
-      });
-    }
-
-    const { data, error } = await supabase
-      .from('projects')
-      .insert([
-        {
-          user_id,
-          title,
-          description: description || '',
-          status: 'draft'
-        }
-      ])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Supabase error:', error);
-      throw error;
-    }
-
-    res.json({ success: true, project: data });
-  } catch (error: any) {
-    console.error('Create project error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.patch('/api/projects/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const updates = req.body;
-
-    const { data, error } = await supabase
-      .from('projects')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Supabase error:', error);
-      throw error;
-    }
-
-    res.json({ success: true, project: data });
-  } catch (error: any) {
-    console.error('Update project error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.delete('/api/projects/:id', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    const { error } = await supabase
-      .from('projects')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Supabase error:', error);
-      throw error;
-    }
-
-    res.json({ success: true, message: 'Project deleted' });
-  } catch (error: any) {
-    console.error('Delete project error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ============================================================================
-// ADVANCED TTS ROUTES
-// ============================================================================
-
+// Advanced TTS
 app.post('/api/advanced-tts', upload.none(), async (req: Request, res: Response) => {
   try {
     const { text, voice, rate, pitch } = req.body;
@@ -360,6 +362,8 @@ app.post('/api/advanced-tts', upload.none(), async (req: Request, res: Response)
     if (!text) {
       return res.status(400).json({ success: false, error: 'Text is required' });
     }
+
+    console.log('🎤 TTS request:', { voice, text: text.substring(0, 50) });
 
     const formData = new FormData();
     formData.append('text', text);
@@ -374,7 +378,7 @@ app.post('/api/advanced-tts', upload.none(), async (req: Request, res: Response)
 
     res.json(response.data);
   } catch (error: any) {
-    console.error('TTS error:', error.message);
+    console.error('❌ TTS error:', error.message);
     res.status(500).json({ 
       success: false, 
       error: error.response?.data?.detail || error.message 
@@ -384,12 +388,10 @@ app.post('/api/advanced-tts', upload.none(), async (req: Request, res: Response)
 
 app.get('/api/voices', async (req: Request, res: Response) => {
   try {
-    const response = await axios.get(`${PYTHON_AI_URL}/api/voices`, {
-      timeout: 10000
-    });
+    const response = await axios.get(`${PYTHON_AI_URL}/api/voices`, { timeout: 10000 });
     res.json(response.data);
   } catch (error: any) {
-    console.error('Get voices error:', error.message);
+    console.error('❌ Voices error:', error.message);
     res.status(500).json({ 
       success: false, 
       error: error.response?.data?.detail || error.message 
@@ -397,10 +399,7 @@ app.get('/api/voices', async (req: Request, res: Response) => {
   }
 });
 
-// ============================================================================
-// VIDEO CREATION - ✅ FIXED: Increased timeout to 5 minutes
-// ============================================================================
-
+// ✅ FIXED: Video Creation with 5-minute timeout
 app.post('/api/create-video', upload.array('images'), async (req: Request, res: Response) => {
   try {
     const files = req.files as Express.Multer.File[];
@@ -413,12 +412,12 @@ app.post('/api/create-video', upload.array('images'), async (req: Request, res: 
 
     const formData = new FormData();
     
-    // Append all images
+    // Append images
     files.forEach((file) => {
       formData.append('images', file.buffer, file.originalname);
     });
 
-    // Append all parameters
+    // Append parameters
     if (req.body.audio_text) formData.append('audio_text', req.body.audio_text);
     formData.append('voice', req.body.voice || 'en-us-female');
     formData.append('duration_per_image', req.body.duration_per_image || '3.0');
@@ -429,23 +428,19 @@ app.post('/api/create-video', upload.array('images'), async (req: Request, res: 
     formData.append('music_volume', req.body.music_volume || '0.3');
     formData.append('add_subtitles', req.body.add_subtitles || 'false');
 
-    console.log('Video settings:', {
-      voice: req.body.voice,
-      transition: req.body.transition,
-      filter: req.body.filter,
-      music_track: req.body.music_track,
-      add_subtitles: req.body.add_subtitles
-    });
+    console.log('📤 Sending to Python API...');
 
-    // ✅ FIXED: Increased timeout to 5 minutes (300 seconds)
+    // ✅ FIXED: 5-minute timeout for video processing
     const response = await axios.post(`${PYTHON_AI_URL}/api/create-video`, formData, {
       headers: formData.getHeaders(),
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
-      timeout: 300000 // 5 minutes timeout
+      timeout: 300000 // 5 minutes
     });
 
-    // Update project status if project_id provided
+    console.log('✅ Video created successfully');
+
+    // Update project if provided
     if (req.body.project_id) {
       await supabase
         .from('projects')
@@ -459,9 +454,9 @@ app.post('/api/create-video', upload.array('images'), async (req: Request, res: 
 
     res.json(response.data);
   } catch (error: any) {
-    console.error('Video creation error:', error.message);
+    console.error('❌ Video creation error:', error.message);
     
-    // Update project status to failed if project_id provided
+    // Update project status if provided
     if (req.body.project_id) {
       await supabase
         .from('projects')
@@ -480,11 +475,20 @@ app.post('/api/create-video', upload.array('images'), async (req: Request, res: 
 });
 
 // ✅ Error handling middleware
-app.use((err: any, req: Request, res: Response, next: any) => {
-  console.error('Unhandled error:', err);
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error('💥 Unhandled error:', err);
   res.status(500).json({
     success: false,
     error: err.message || 'Internal server error'
+  });
+});
+
+// 404 handler
+app.use((req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    error: 'Endpoint not found',
+    path: req.path
   });
 });
 
@@ -492,34 +496,32 @@ app.use((err: any, req: Request, res: Response, next: any) => {
 app.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════════════════════════════╗
-║   🚀 AI Video Studio - TypeScript API Server             ║
+║   🚀 AI Video Studio - TypeScript API v6.0                ║
 ╚════════════════════════════════════════════════════════════╝
 
-✅ Server running on: http://localhost:${PORT}
-🔗 Python AI Service: ${PYTHON_AI_URL}
+✅ Server: http://localhost:${PORT}
+🔗 Python API: ${PYTHON_AI_URL}
 📦 Supabase: ${supabaseUrl ? '✓ Connected' : '✗ Not configured'}
 
-🎨 Features Enabled:
-   - Stock Photo Search (Pexels API)
-   - Music Library (5 categories)
-   - Subtitle Generation
-   - Advanced Text-to-Speech (24+ voices)
-   - Video Creation with Transitions
-   - Image Filters & Enhancement
-   - Project Management ✅ FIXED
+🎨 Features:
+   - ✅ Project Management (GET, POST, PATCH, DELETE)
+   - ✅ Stock Photos (Search & Download)
+   - ✅ Music Library (5 categories)
+   - ✅ Subtitle Generation
+   - ✅ Advanced TTS (24+ voices)
+   - ✅ Video Creation (5min timeout)
 
-📚 API Endpoints:
-   - GET  /api/projects
-   - POST /api/projects
-   - PATCH /api/projects/:id
-   - DELETE /api/projects/:id
-   - GET  /api/stock-photos/search
-   - POST /api/stock-photos/download
-   - GET  /api/music/categories
-   - GET  /api/music/tracks
-   - POST /api/subtitles/generate
-   - POST /api/create-video (5min timeout)
+📝 Endpoints:
+   GET    /health
+   GET    /api/projects?user_id=<id>
+   POST   /api/projects
+   PATCH  /api/projects/:id
+   DELETE /api/projects/:id
+   GET    /api/stock-photos/search
+   POST   /api/stock-photos/download
+   GET    /api/music/categories
+   POST   /api/create-video
 
-Press Ctrl+C to stop the server
+Press Ctrl+C to stop
   `);
 });

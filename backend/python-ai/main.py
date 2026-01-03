@@ -1,6 +1,6 @@
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 import cv2
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
@@ -32,13 +32,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ✅ FIXED: Add OPTIONS handler for CORS preflight requests
+@app.options("/{rest_of_path:path}")
+async def preflight_handler():
+    """Handle CORS preflight requests"""
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
 # Create directories
+# Create directories with error handling
 UPLOAD_DIR = Path("/shared-storage/uploads")
 OUTPUT_DIR = Path("/shared-storage/outputs")
 MUSIC_DIR = Path("/shared-storage/music")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-MUSIC_DIR.mkdir(parents=True, exist_ok=True)
+
+# ✅ FIXED: Better error handling for directory creation
+try:
+    for directory in [UPLOAD_DIR, OUTPUT_DIR, MUSIC_DIR]:
+        directory.mkdir(parents=True, exist_ok=True)
+        print(f"✅ Directory ready: {directory}")
+except Exception as e:
+    print(f"⚠️ Directory creation warning: {e}")
+    # Fallback to local directories
+    UPLOAD_DIR = Path("./uploads")
+    OUTPUT_DIR = Path("./outputs")
+    MUSIC_DIR = Path("./music")
+    for directory in [UPLOAD_DIR, OUTPUT_DIR, MUSIC_DIR]:
+        directory.mkdir(parents=True, exist_ok=True)
 
 # Create music category subdirectories
 for category in ["upbeat", "calm", "corporate", "cinematic", "inspirational"]:
@@ -295,7 +320,16 @@ async def root():
             "ui": ["🎨 Vibrant colors", "🔮 Shadow animations", "⚡ Interactive hover effects", "🌟 Glow animations"]
         }
     }
-
+# ✅ FIXED: Add health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring"""
+    return {
+        "status": "healthy",
+        "service": "python-ai",
+        "version": "8.0",
+        "timestamp": str(uuid.uuid4())
+    }
 # ==================== STOCK PHOTOS ====================
 @app.get("/api/stock-photos/search")
 async def search_stock_photos(query: str, page: int = 1, per_page: int = 15):
