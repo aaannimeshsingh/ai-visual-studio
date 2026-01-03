@@ -2,23 +2,24 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files AND tsconfig
 COPY package*.json ./
+COPY tsconfig.json ./
 
-# Install ALL dependencies (including devDependencies for build)
-RUN npm ci
+# Copy source code BEFORE npm install
+COPY src ./src
 
-# Copy source code and tsconfig
-COPY . .
+# Install dependencies (including devDependencies for build)
+RUN npm install
 
-# Build TypeScript to JavaScript
+# Build TypeScript
 RUN npm run build
 
-# Remove dev dependencies to reduce image size
+# Remove devDependencies to reduce image size
 RUN npm prune --production
 
-# Expose port 8000 (Koyeb default)
-EXPOSE 8000
+# Expose port
+EXPOSE 8080
 
-# Start the production server
-CMD ["npm", "start"]
+# Start the server
+CMD ["node", "dist/index.js"]
