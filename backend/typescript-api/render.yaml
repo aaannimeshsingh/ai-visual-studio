@@ -1,0 +1,42 @@
+# render.yaml - Place in project root
+services:
+  # Python AI Service
+  - type: web
+    name: ai-video-python
+    env: docker
+    dockerfilePath: ./backend/python-ai/Dockerfile
+    dockerContext: ./backend/python-ai
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: PEXELS_API_KEY
+        sync: false
+      - key: UNSPLASH_ACCESS_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+    healthCheckPath: /health
+    autoDeploy: true
+    
+  # TypeScript API Service
+  - type: web
+    name: ai-video-typescript
+    env: docker
+    dockerfilePath: ./backend/typescript-api/Dockerfile
+    dockerContext: ./backend/typescript-api
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: PYTHON_AI_URL
+        fromService:
+          type: web
+          name: ai-video-python
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+    healthCheckPath: /health
+    autoDeploy: true

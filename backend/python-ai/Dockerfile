@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies including build tools
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
@@ -13,15 +13,10 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     gcc \
     g++ \
-    build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust (needed for some Python packages)
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-# Copy requirements first for better caching
+# Copy requirements
 COPY requirements.txt .
 
 # Upgrade pip
@@ -33,8 +28,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Expose port
+# Create necessary directories
+RUN mkdir -p /shared-storage/uploads /shared-storage/outputs /shared-storage/music
+
+# Expose port (Render uses PORT env var)
 EXPOSE 8000
 
-# ✅ FIXED: Remove --reload flag for production
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+
+# Start with Render's PORT environment variable
+CMD sh -c "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
