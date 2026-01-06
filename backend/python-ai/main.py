@@ -24,10 +24,11 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "https://ai-visual-studio.vercel.app",
-        "https://*.vercel.app",  # Allow all Vercel preview deployments
-        "*"  # Temporary - allows all origins for testing
+        "https://ai-visual-studio-git-main-aaannimeshsinghs-projects.vercel.app",  # ✅ ADD THIS
+        "https://*.vercel.app",
+        "*"
     ],
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
