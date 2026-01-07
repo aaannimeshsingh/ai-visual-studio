@@ -21,14 +21,8 @@ app = FastAPI(title="AI Video Studio - Enhanced with Vibrant Animations")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://ai-visual-studio.vercel.app",
-        "https://ai-visual-studio-git-main-aaannimeshsinghs-projects.vercel.app",  # ✅ ADD THIS
-        "https://*.vercel.app",
-        "*"
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
